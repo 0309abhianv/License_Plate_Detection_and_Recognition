@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{ vehicle.plate_text }} Profile</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <header class="topbar">
+        <div>
+            <h1>{{ vehicle.plate_text }}</h1>
+            <p>Vehicle profile and camera detection history.</p>
+        </div>
+        <a class="button" href="{{ url_for('dashboard') }}">Back</a>
+    </header>
+
+    <main>
+        <section class="stats">
+            <div><span>Status</span><strong>{{ 'Authorized' if vehicle.is_authorized else 'Unauthorized' }}</strong></div>
+            <div><span>First Seen</span><strong>{{ vehicle.first_seen }}</strong></div>
+            <div><span>Last Seen</span><strong>{{ vehicle.last_seen }}</strong></div>
+            <div><span>Total Visits</span><strong>{{ vehicle.detection_count }}</strong></div>
+        </section>
+
+        <section class="panel">
+            <h2>Owner Details</h2>
+            <p><strong>Owner:</strong> {{ vehicle.owner_name or "Not added" }}</p>
+            <p><strong>Vehicle:</strong> {{ vehicle.vehicle_model or "Not added" }}</p>
+            <p><strong>Note:</strong> {{ vehicle.note or "No note" }}</p>
+        </section>
+
+        <section class="panel">
+            <h2>Detection History</h2>
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Time</th>
+                            <th>Location</th>
+                            <th>Source</th>
+                            <th>Confidence</th>
+                            <th>Frame</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in history %}
+                        <tr>
+                            <td>{{ row.timestamp }}</td>
+                            <td>{{ row.camera_location }}</td>
+                            <td>{{ row.source }}</td>
+                            <td>{{ "%.2f"|format(row.confidence) }}</td>
+                            <td>{{ row.frame_number }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    </main>
+</body>
+</html>

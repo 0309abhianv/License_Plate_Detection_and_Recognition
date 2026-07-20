@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta http-equiv="refresh" content="8">
+    <title>License Plate Dashboard</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <header class="topbar">
+        <div>
+            <h1>License Plate Dashboard</h1>
+            <p>Live vehicle detections, search, and authorization status.</p>
+        </div>
+        <a class="button" href="{{ url_for('dashboard') }}">Live Refresh</a>
+    </header>
+
+    <main>
+        <section class="stats">
+            <div><span>Total Detections</span><strong>{{ stats.total_detections or 0 }}</strong></div>
+            <div><span>Vehicles</span><strong>{{ stats.total_vehicles or 0 }}</strong></div>
+            <div><span>Authorized Hits</span><strong>{{ stats.authorized_hits or 0 }}</strong></div>
+            <div><span>Unauthorized Hits</span><strong>{{ stats.unauthorized_hits or 0 }}</strong></div>
+        </section>
+
+        <section class="panel">
+            <h2>Search Records</h2>
+            <form class="filters" method="get">
+                <input name="search" value="{{ search }}" placeholder="Search plate number">
+                <select name="status">
+                    <option value="all" {% if status == "all" %}selected{% endif %}>All</option>
+                    <option value="authorized" {% if status == "authorized" %}selected{% endif %}>Authorized</option>
+                    <option value="unauthorized" {% if status == "unauthorized" %}selected{% endif %}>Unauthorized</option>
+                </select>
+                <button type="submit">Search</button>
+            </form>
+        </section>
+
+        <section class="panel">
+            <h2>Add Authorized Vehicle</h2>
+            <form class="authorized-form" method="post" action="{{ url_for('add_authorized_vehicle') }}">
+                <input name="plate_text" placeholder="Plate number" required>
+                <input name="owner_name" placeholder="Owner name">
+                <input name="vehicle_model" placeholder="Vehicle model">
+                <input name="note" placeholder="Note">
+                <button type="submit">Save</button>
+            </form>
+        </section>
+
+        <section class="grid">
+            <div class="panel">
+                <h2>Car Profiles</h2>
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Plate</th>
+                                <th>Status</th>
+                                <th>Last Location</th>
+                                <th>Last Seen</th>
+                                <th>Count</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for vehicle in vehicles %}
+                            <tr>
+                                <td><a href="{{ url_for('vehicle_profile', plate_text=vehicle.plate_text) }}">{{ vehicle.plate_text }}</a></td>
+                                <td><span class="badge {{ 'ok' if vehicle.is_authorized else 'alert' }}">{{ 'Authorized' if vehicle.is_authorized else 'Unauthorized' }}</span></td>
+                                <td>{{ vehicle.last_location }}</td>
+                                <td>{{ vehicle.last_seen }}</td>
+                                <td>{{ vehicle.detection_count }}</td>
+                            </tr>
+                            {% else %}
+                            <tr><td colspan="5">No vehicle records yet.</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="panel">
+                <h2>Latest Detections</h2>
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Time</th>
+                                <th>Plate</th>
+                                <th>Location</th>
+                                <th>Confidence</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for detection in detections %}
+                            <tr>
+                                <td>{{ detection.timestamp }}</td>
+                                <td><a href="{{ url_for('vehicle_profile', plate_text=detection.plate_text) }}">{{ detection.plate_text }}</a></td>
+                                <td>{{ detection.camera_location }}</td>
+                                <td>{{ "%.2f"|format(detection.confidence) }}</td>
+                                <td><span class="badge {{ 'ok' if detection.is_authorized else 'alert' }}">{{ 'Authorized' if detection.is_authorized else 'Unauthorized' }}</span></td>
+                            </tr>
+                            {% else %}
+                            <tr><td colspan="5">No detections match this search.</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+    </main>
+</body>
+</html>
