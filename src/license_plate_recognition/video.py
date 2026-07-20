@@ -20,6 +20,7 @@ def process_video(
     max_candidates: int = 2,
     async_ocr: bool = True,
     logger: PlateLogger | None = None,
+    full_frame_ocr: bool = False,
 ) -> None:
     capture = cv2.VideoCapture(source)
     if not capture.isOpened():
@@ -54,6 +55,7 @@ def process_video(
                             candidates,
                             frame_number,
                             elapsed_ms,
+                            frame if full_frame_ocr else None,
                         )
                     else:
                         latest_detections = _read_candidates(
@@ -61,6 +63,7 @@ def process_video(
                             candidates,
                             frame_number,
                             elapsed_ms,
+                            frame if full_frame_ocr else None,
                         )
                         if logger is not None:
                             logger.log(latest_detections, source)
@@ -88,6 +91,7 @@ def _read_candidates(
     candidates: list[PlateCandidate],
     frame_number: int,
     elapsed_ms: int,
+    frame=None,
 ) -> list[PlateDetection]:
     detections = []
     for candidate in candidates:
@@ -99,7 +103,43 @@ def _read_candidates(
                 elapsed_ms=elapsed_ms,
             )
         )
+    if frame is not None:
+        detections.extend(_read_full_frame_regions(reader, frame, frame_number, elapsed_ms))
     return detections
+
+
+def _read_full_frame_regions(
+    reader: PlateReader,
+    frame,
+    frame_number: int,
+    elapsed_ms: int,
+) -> list[PlateDetection]:
+    detections = []
+    for region in reader.read_regions(frame):
+        x, y, width, height = _pad_region(frame, region.bbox)
+        crop = frame[y : y + height, x : x + width]
+        if crop.size == 0:
+            continue
+        detections.append(
+            PlateDetection(
+                candidate=PlateCandidate((x, y, width, height), crop, 1.0),
+                text=region.text,
+                frame_number=frame_number,
+                elapsed_ms=elapsed_ms,
+            )
+        )
+    return detections
+
+
+def _pad_region(frame, bbox: tuple[int, int, int, int]) -> tuple[int, int, int, int]:
+    x, y, width, height = bbox
+    pad_x = int(width * 0.15)
+    pad_y = int(height * 0.45)
+    x1 = max(0, x - pad_x)
+    y1 = max(0, y - pad_y)
+    x2 = min(frame.shape[1], x + width + pad_x)
+    y2 = min(frame.shape[0], y + height + pad_y)
+    return x1, y1, x2 - x1, y2 - y1
 
 
 def draw_detections(

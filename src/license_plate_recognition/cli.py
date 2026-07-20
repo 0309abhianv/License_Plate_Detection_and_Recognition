@@ -98,6 +98,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="Run OCR on the main video loop instead of using the background worker.",
     )
     parser.add_argument(
+        "--full-frame-ocr",
+        action="store_true",
+        help="High-accuracy mode: also run OCR on the full frame to find plates missed by contour detection.",
+    )
+    parser.add_argument(
         "--min-area",
         type=int,
         default=1500,
@@ -164,5 +169,6 @@ def main() -> int:
         max_candidates=max(1, args.max_candidates),
         async_ocr=not args.sync_ocr,
         logger=logger,
+        full_frame_ocr=args.full_frame_ocr,
     )
     return 0

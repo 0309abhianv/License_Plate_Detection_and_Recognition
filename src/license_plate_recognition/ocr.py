@@ -48,6 +48,12 @@ class PlateText:
     confidence: float
 
 
+@dataclass(frozen=True)
+class TextRegion:
+    bbox: tuple[int, int, int, int]
+    text: PlateText
+
+
 class PlateReader:
     def __init__(
         self,
@@ -85,6 +91,47 @@ class PlateReader:
                 return best
 
         return best
+
+    def read_regions(self, image: np.ndarray, max_regions: int = 3) -> list[TextRegion]:
+        readable_image = self._resize_frame_for_ocr(image)
+        scale_x = image.shape[1] / readable_image.shape[1]
+        scale_y = image.shape[0] / readable_image.shape[0]
+        results = self.reader.readtext(
+            readable_image,
+            allowlist="ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 ",
+            detail=1,
+            paragraph=False,
+            decoder="greedy",
+            contrast_ths=0.2,
+            adjust_contrast=0.7,
+        )
+
+        regions: list[TextRegion] = []
+        for box, raw_text, confidence in results:
+            normalized = self._normalize(raw_text)
+            if len(normalized) < 7:
+                continue
+            corrected, correction_score = self._correct_plate_text(normalized)
+            plate_text = PlateText(
+                corrected,
+                min(float(confidence) + correction_score, 1.0),
+            )
+            if self._rank_plate_text(plate_text) < 0.65:
+                continue
+
+            x_values = [point[0] for point in box]
+            y_values = [point[1] for point in box]
+            x1 = int(max(min(x_values) * scale_x, 0))
+            y1 = int(max(min(y_values) * scale_y, 0))
+            x2 = int(min(max(x_values) * scale_x, image.shape[1]))
+            y2 = int(min(max(y_values) * scale_y, image.shape[0]))
+            regions.append(TextRegion((x1, y1, x2 - x1, y2 - y1), plate_text))
+
+        return sorted(
+            regions,
+            key=lambda region: self._rank_plate_text(region.text),
+            reverse=True,
+        )[:max_regions]
 
     def _enhance_for_ocr(self, crop: np.ndarray) -> list[np.ndarray]:
         resized = self._resize_for_ocr(crop)
@@ -129,6 +176,20 @@ class PlateReader:
             crop,
             (int(width * scale), int(height * scale)),
             interpolation=cv2.INTER_CUBIC,
+        )
+
+    @staticmethod
+    def _resize_frame_for_ocr(frame: np.ndarray) -> np.ndarray:
+        height, width = frame.shape[:2]
+        target_width = 1280
+        if width <= target_width:
+            return frame
+
+        scale = target_width / width
+        return cv2.resize(
+            frame,
+            (target_width, int(height * scale)),
+            interpolation=cv2.INTER_AREA,
         )
 
     @staticmethod
