@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from concurrent.futures import Future, ThreadPoolExecutor
+from dataclasses import replace
 from pathlib import Path
 
 import cv2
@@ -30,6 +31,7 @@ def process_video(
 
     writer = _build_writer(capture, output_path)
     latest_detections: list[PlateDetection] = []
+    display_detections: list[PlateDetection] = []
     pending_ocr: Future[list[PlateDetection]] | None = None
     frame_number = 0
 
@@ -44,6 +46,9 @@ def process_video(
                     latest_detections = pending_ocr.result()
                     if logger is not None:
                         logger.log(latest_detections, source)
+                    display_detections = _mark_display_frame(
+                        latest_detections, frame_number
+                    )
                     pending_ocr = None
 
                 should_run_ocr = frame_number % frame_skip == 0
@@ -69,9 +74,12 @@ def process_video(
                         )
                         if logger is not None:
                             logger.log(latest_detections, source)
+                        display_detections = _mark_display_frame(
+                            latest_detections, frame_number
+                        )
 
                 visible_detections = _visible_detections(
-                    latest_detections,
+                    display_detections,
                     frame_number,
                     detection_ttl_frames,
                     min_display_confidence,
@@ -92,6 +100,15 @@ def process_video(
             writer.release()
         if display:
             cv2.destroyAllWindows()
+
+
+def _mark_display_frame(
+    detections: list[PlateDetection], display_frame_number: int
+) -> list[PlateDetection]:
+    return [
+        replace(detection, frame_number=display_frame_number)
+        for detection in detections
+    ]
 
 
 def _visible_detections(
