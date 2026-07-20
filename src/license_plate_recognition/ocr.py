@@ -116,7 +116,10 @@ class PlateReader:
                 corrected,
                 min(float(confidence) + correction_score, 1.0),
             )
-            if self._rank_plate_text(plate_text) < 0.65:
+            if (
+                self._rank_plate_text(plate_text) < 0.72
+                or not self._starts_like_indian_plate(plate_text.text)
+            ):
                 continue
 
             x_values = [point[0] for point in box]
@@ -263,6 +266,10 @@ class PlateReader:
             + length_score * 0.12
             + starts_like_plate * 0.08
         )
+
+    @staticmethod
+    def _starts_like_indian_plate(text: str) -> bool:
+        return len(text) >= 4 and text[:2].isalpha() and text[2:4].isdigit()
 
     @staticmethod
     def _apply_template(text: str, template: str) -> tuple[str, float]:

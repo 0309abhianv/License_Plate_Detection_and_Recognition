@@ -21,6 +21,8 @@ def process_video(
     async_ocr: bool = True,
     logger: PlateLogger | None = None,
     full_frame_ocr: bool = False,
+    detection_ttl_frames: int = 10,
+    min_display_confidence: float = 0.35,
 ) -> None:
     capture = cv2.VideoCapture(source)
     if not capture.isOpened():
@@ -68,7 +70,13 @@ def process_video(
                         if logger is not None:
                             logger.log(latest_detections, source)
 
-                annotated = draw_detections(frame, latest_detections)
+                visible_detections = _visible_detections(
+                    latest_detections,
+                    frame_number,
+                    detection_ttl_frames,
+                    min_display_confidence,
+                )
+                annotated = draw_detections(frame, visible_detections)
 
                 if writer is not None:
                     writer.write(annotated)
@@ -84,6 +92,22 @@ def process_video(
             writer.release()
         if display:
             cv2.destroyAllWindows()
+
+
+def _visible_detections(
+    detections: list[PlateDetection],
+    current_frame: int,
+    ttl_frames: int,
+    min_confidence: float,
+) -> list[PlateDetection]:
+    visible = []
+    for detection in detections:
+        if current_frame - detection.frame_number > ttl_frames:
+            continue
+        if detection.text is not None and detection.text.confidence < min_confidence:
+            continue
+        visible.append(detection)
+    return visible
 
 
 def _read_candidates(

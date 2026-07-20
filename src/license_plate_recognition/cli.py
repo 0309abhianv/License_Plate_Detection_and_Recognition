@@ -103,6 +103,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="High-accuracy mode: also run OCR on the full frame to find plates missed by contour detection.",
     )
     parser.add_argument(
+        "--detection-ttl-frames",
+        type=int,
+        default=8,
+        help="Number of frames to keep a recognized plate on screen after OCR finds it.",
+    )
+    parser.add_argument(
         "--min-area",
         type=int,
         default=1500,
@@ -170,5 +176,7 @@ def main() -> int:
         async_ocr=not args.sync_ocr,
         logger=logger,
         full_frame_ocr=args.full_frame_ocr,
+        detection_ttl_frames=max(0, args.detection_ttl_frames),
+        min_display_confidence=max(0.0, args.min_confidence),
     )
     return 0
