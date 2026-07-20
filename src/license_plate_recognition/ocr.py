@@ -42,6 +42,15 @@ LETTER_TO_DIGIT = {
 }
 
 
+def looks_like_indian_plate(text: str) -> bool:
+    normalized = PlateReader._normalize(text)
+    return (
+        8 <= len(normalized) <= 10
+        and PlateReader._starts_like_indian_plate(normalized)
+        and PlateReader._rank_plate_text(PlateText(normalized, 1.0)) >= 0.78
+    )
+
+
 @dataclass(frozen=True)
 class PlateText:
     text: str
@@ -107,7 +116,7 @@ class PlateReader:
         )
 
         regions: list[TextRegion] = []
-        for box, raw_text, confidence in results:
+        for box, raw_text, confidence in self._region_candidates(results):
             normalized = self._normalize(raw_text)
             if len(normalized) < 7:
                 continue
@@ -135,6 +144,59 @@ class PlateReader:
             key=lambda region: self._rank_plate_text(region.text),
             reverse=True,
         )[:max_regions]
+
+    @staticmethod
+    def _region_candidates(results: list[tuple]) -> list[tuple[list, str, float]]:
+        candidates = list(results)
+        line_groups = PlateReader._group_text_lines(results)
+
+        for group in line_groups:
+            if len(group) < 2:
+                continue
+
+            group.sort(key=lambda item: min(point[0] for point in item[0]))
+            text = "".join(item[1] for item in group)
+            confidence = sum(float(item[2]) for item in group) / len(group)
+            x_values = [point[0] for item in group for point in item[0]]
+            y_values = [point[1] for item in group for point in item[0]]
+            box = [
+                [min(x_values), min(y_values)],
+                [max(x_values), min(y_values)],
+                [max(x_values), max(y_values)],
+                [min(x_values), max(y_values)],
+            ]
+            candidates.append((box, text, confidence))
+
+        return candidates
+
+    @staticmethod
+    def _group_text_lines(results: list[tuple]) -> list[list[tuple]]:
+        items = []
+        for box, raw_text, confidence in results:
+            normalized = PlateReader._normalize(raw_text)
+            if not normalized:
+                continue
+            y_values = [point[1] for point in box]
+            height = max(y_values) - min(y_values)
+            center_y = sum(y_values) / len(y_values)
+            items.append((center_y, max(height, 1), box, normalized, float(confidence)))
+
+        groups: list[list[tuple]] = []
+        for center_y, height, box, text, confidence in sorted(items, key=lambda item: item[0]):
+            placed = False
+            for group in groups:
+                group_center = sum(
+                    sum(point[1] for point in item[0]) / len(item[0])
+                    for item in group
+                ) / len(group)
+                if abs(center_y - group_center) <= max(height * 0.75, 18):
+                    group.append((box, text, confidence))
+                    placed = True
+                    break
+            if not placed:
+                groups.append([(box, text, confidence)])
+
+        return groups
 
     def _enhance_for_ocr(self, crop: np.ndarray) -> list[np.ndarray]:
         resized = self._resize_for_ocr(crop)

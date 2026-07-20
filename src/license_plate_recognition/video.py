@@ -7,7 +7,7 @@ from pathlib import Path
 import cv2
 
 from .detector import PlateCandidate, PlateDetector
-from .ocr import PlateReader, PlateText
+from .ocr import PlateReader, PlateText, looks_like_indian_plate
 from .storage import PlateDetection, PlateLogger
 
 
@@ -122,6 +122,8 @@ def _visible_detections(
         if current_frame - detection.frame_number > ttl_frames:
             continue
         if detection.text is not None and detection.text.confidence < min_confidence:
+            continue
+        if detection.text is not None and not looks_like_indian_plate(detection.text.text):
             continue
         visible.append(detection)
     return visible

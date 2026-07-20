@@ -11,7 +11,7 @@ from urllib.error import URLError
 from urllib.request import Request, urlopen
 
 from .detector import PlateCandidate
-from .ocr import PlateText
+from .ocr import PlateText, looks_like_indian_plate
 
 
 CSV_FIELDNAMES = [
@@ -72,6 +72,8 @@ class PlateLogger:
         rows = []
         for detection in detections:
             if detection.text is None:
+                continue
+            if not looks_like_indian_plate(detection.text.text):
                 continue
             if detection.text.confidence < self.min_confidence:
                 continue
