@@ -24,6 +24,8 @@ def process_video(
     full_frame_ocr: bool = False,
     detection_ttl_frames: int = 10,
     min_display_confidence: float = 0.35,
+    stop_after_detections: int = 0,
+    progress_every: int = 100,
 ) -> None:
     capture = cv2.VideoCapture(source)
     if not capture.isOpened():
@@ -34,6 +36,7 @@ def process_video(
     display_detections: list[PlateDetection] = []
     pending_ocr: Future[list[PlateDetection]] | None = None
     frame_number = 0
+    stored_detection_count = 0
 
     try:
         with ThreadPoolExecutor(max_workers=1) as executor:
@@ -46,10 +49,16 @@ def process_video(
                     latest_detections = pending_ocr.result()
                     if logger is not None:
                         logger.log(latest_detections, source)
+                    stored_detection_count += _count_valid_detections(
+                        latest_detections,
+                        min_display_confidence,
+                    )
                     display_detections = _mark_display_frame(
                         latest_detections, frame_number
                     )
                     pending_ocr = None
+                    if _should_stop(stored_detection_count, stop_after_detections):
+                        break
 
                 should_run_ocr = frame_number % frame_skip == 0
                 if should_run_ocr and (pending_ocr is None or not async_ocr):
@@ -74,9 +83,15 @@ def process_video(
                         )
                         if logger is not None:
                             logger.log(latest_detections, source)
+                        stored_detection_count += _count_valid_detections(
+                            latest_detections,
+                            min_display_confidence,
+                        )
                         display_detections = _mark_display_frame(
                             latest_detections, frame_number
                         )
+                        if _should_stop(stored_detection_count, stop_after_detections):
+                            break
 
                 visible_detections = _visible_detections(
                     display_detections,
@@ -94,12 +109,31 @@ def process_video(
                         break
 
                 frame_number += 1
+                if progress_every > 0 and frame_number % progress_every == 0:
+                    print(f"Processed {frame_number} frames...")
     finally:
         capture.release()
         if writer is not None:
             writer.release()
         if display:
             cv2.destroyAllWindows()
+
+
+def _count_valid_detections(
+    detections: list[PlateDetection],
+    min_confidence: float,
+) -> int:
+    return sum(
+        1
+        for detection in detections
+        if detection.text is not None
+        and detection.text.confidence >= min_confidence
+        and looks_like_indian_plate(detection.text.text)
+    )
+
+
+def _should_stop(found_count: int, stop_after_detections: int) -> bool:
+    return stop_after_detections > 0 and found_count >= stop_after_detections
 
 
 def _mark_display_frame(

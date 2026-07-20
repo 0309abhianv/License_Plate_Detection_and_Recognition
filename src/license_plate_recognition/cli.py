@@ -120,6 +120,18 @@ def build_parser() -> argparse.ArgumentParser:
         help="Number of frames to keep a recognized plate on screen after OCR finds it.",
     )
     parser.add_argument(
+        "--stop-after-detections",
+        type=int,
+        default=0,
+        help="Stop processing after this many valid detections. Use 0 to scan the whole video.",
+    )
+    parser.add_argument(
+        "--progress-every",
+        type=int,
+        default=100,
+        help="Print progress after this many frames. Use 0 to disable progress messages.",
+    )
+    parser.add_argument(
         "--min-area",
         type=int,
         default=1500,
@@ -198,5 +210,7 @@ def main() -> int:
         full_frame_ocr=args.full_frame_ocr,
         detection_ttl_frames=max(0, args.detection_ttl_frames),
         min_display_confidence=max(0.0, args.min_confidence),
+        stop_after_detections=max(0, args.stop_after_detections),
+        progress_every=max(0, args.progress_every),
     )
     return 0
