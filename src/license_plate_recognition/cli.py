@@ -98,6 +98,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="Run OCR on the main video loop instead of using the background worker.",
     )
     parser.add_argument(
+        "--async-ocr",
+        action="store_true",
+        help="Force background OCR. Useful for webcam smoothness, but not recommended for moving video files.",
+    )
+    parser.add_argument(
         "--full-frame-ocr",
         action="store_true",
         help="High-accuracy mode: also run OCR on the full frame to find plates missed by contour detection.",
@@ -144,6 +149,14 @@ def normalize_source(source: str) -> str | int:
     return int(source) if source.isdigit() else source
 
 
+def should_use_async_ocr(source: str, sync_ocr: bool, async_ocr: bool) -> bool:
+    if sync_ocr:
+        return False
+    if async_ocr:
+        return True
+    return source.isdigit()
+
+
 def main() -> int:
     args = build_parser().parse_args()
 
@@ -180,7 +193,7 @@ def main() -> int:
         display=args.display,
         frame_skip=max(1, args.frame_skip),
         max_candidates=max(1, args.max_candidates),
-        async_ocr=not args.sync_ocr,
+        async_ocr=should_use_async_ocr(args.source, args.sync_ocr, args.async_ocr),
         logger=logger,
         full_frame_ocr=args.full_frame_ocr,
         detection_ttl_frames=max(0, args.detection_ttl_frames),
