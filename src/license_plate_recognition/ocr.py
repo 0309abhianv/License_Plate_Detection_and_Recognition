@@ -69,8 +69,10 @@ class PlateReader:
         languages: list[str] | None = None,
         use_gpu: bool = True,
         fast_mode: bool = False,
+        full_frame_width: int = 960,
     ) -> None:
         self.fast_mode = fast_mode
+        self.full_frame_width = full_frame_width
         self.reader = easyocr.Reader(languages or ["en"], gpu=use_gpu)
 
     def read(self, plate_crop: np.ndarray) -> PlateText | None:
@@ -84,6 +86,7 @@ class PlateReader:
                 detail=1,
                 paragraph=False,
                 decoder="greedy",
+                canvas_size=640,
                 contrast_ths=0.2,
                 adjust_contrast=0.7,
             )
@@ -97,7 +100,7 @@ class PlateReader:
         return best
 
     def read_regions(self, image: np.ndarray, max_regions: int = 3) -> list[TextRegion]:
-        readable_image = self._resize_frame_for_ocr(image)
+        readable_image = self._resize_frame_for_ocr(image, self.full_frame_width)
         scale_x = image.shape[1] / readable_image.shape[1]
         scale_y = image.shape[0] / readable_image.shape[0]
         results = self.reader.readtext(
@@ -106,6 +109,7 @@ class PlateReader:
             detail=1,
             paragraph=False,
             decoder="greedy",
+            canvas_size=max(self.full_frame_width, 640),
             contrast_ths=0.2,
             adjust_contrast=0.7,
         )
@@ -278,9 +282,9 @@ class PlateReader:
         )
 
     @staticmethod
-    def _resize_frame_for_ocr(frame: np.ndarray) -> np.ndarray:
+    def _resize_frame_for_ocr(frame: np.ndarray, target_width: int) -> np.ndarray:
         height, width = frame.shape[:2]
-        target_width = 1280
+        target_width = max(target_width, 480)
         if width <= target_width:
             return frame
 

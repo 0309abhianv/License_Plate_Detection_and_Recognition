@@ -103,6 +103,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="High-accuracy mode: also run OCR on the full frame to find plates missed by contour detection.",
     )
     parser.add_argument(
+        "--full-frame-width",
+        type=int,
+        default=960,
+        help="Resize full-frame OCR to this width. Lower is faster; higher is better for tiny plates.",
+    )
+    parser.add_argument(
         "--detection-ttl-frames",
         type=int,
         default=8,
@@ -151,6 +157,7 @@ def main() -> int:
         languages=args.languages,
         use_gpu=not args.cpu,
         fast_mode=args.fast_ocr,
+        full_frame_width=max(480, args.full_frame_width),
     )
     logger = None
     if not args.no_log:
