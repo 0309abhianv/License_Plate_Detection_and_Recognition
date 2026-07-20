@@ -47,7 +47,7 @@ def looks_like_indian_plate(text: str) -> bool:
     return (
         8 <= len(normalized) <= 10
         and PlateReader._starts_like_indian_plate(normalized)
-        and PlateReader._rank_plate_text(PlateText(normalized, 1.0)) >= 0.78
+        and PlateReader._rank_plate_text(PlateText(normalized, 1.0)) >= 0.70
     )
 
 
@@ -88,14 +88,9 @@ class PlateReader:
                 adjust_contrast=0.7,
             )
             for raw_text, confidence in self._candidate_texts(results):
-                normalized = self._normalize(raw_text)
-                if len(normalized) < 4:
-                    continue
-                corrected, correction_score = self._correct_plate_text(normalized)
-                confidence = min(float(confidence) + correction_score, 1.0)
-                candidate = PlateText(corrected, confidence)
-                if best is None or self._rank_plate_text(candidate) > self._rank_plate_text(best):
-                    best = candidate
+                for candidate in self._plate_text_options(raw_text, float(confidence)):
+                    if best is None or self._rank_plate_text(candidate) > self._rank_plate_text(best):
+                        best = candidate
             if best is not None and self._rank_plate_text(best) >= 0.90:
                 return best
 
@@ -117,13 +112,12 @@ class PlateReader:
 
         regions: list[TextRegion] = []
         for box, raw_text, confidence in self._region_candidates(results):
-            normalized = self._normalize(raw_text)
-            if len(normalized) < 7:
+            options = self._plate_text_options(raw_text, float(confidence))
+            if not options:
                 continue
-            corrected, correction_score = self._correct_plate_text(normalized)
-            plate_text = PlateText(
-                corrected,
-                min(float(confidence) + correction_score, 1.0),
+            plate_text = max(
+                options,
+                key=lambda candidate: self._rank_plate_text(candidate),
             )
             if (
                 self._rank_plate_text(plate_text) < 0.72
@@ -144,6 +138,46 @@ class PlateReader:
             key=lambda region: self._rank_plate_text(region.text),
             reverse=True,
         )[:max_regions]
+
+    def _plate_text_options(self, raw_text: str, confidence: float) -> list[PlateText]:
+        normalized = self._normalize(raw_text)
+        if len(normalized) < 4:
+            return []
+
+        options: list[PlateText] = []
+        for text in self._possible_plate_strings(normalized):
+            corrected, correction_score = self._correct_plate_text(text)
+            if len(corrected) < 7:
+                continue
+            options.append(
+                PlateText(corrected, min(confidence + correction_score, 1.0))
+            )
+
+        unique: dict[str, PlateText] = {}
+        for option in options:
+            previous = unique.get(option.text)
+            if previous is None or option.confidence > previous.confidence:
+                unique[option.text] = option
+        return list(unique.values())
+
+    @staticmethod
+    def _possible_plate_strings(text: str) -> list[str]:
+        candidates = [text]
+        for length in range(8, 11):
+            if len(text) < length:
+                continue
+            for index in range(0, len(text) - length + 1):
+                window = text[index : index + length]
+                if PlateReader._window_can_be_plate(window):
+                    candidates.append(window)
+        return candidates
+
+    @staticmethod
+    def _window_can_be_plate(text: str) -> bool:
+        if len(text) < 8:
+            return False
+        corrected, _ = PlateReader._correct_plate_text(text)
+        return PlateReader._starts_like_indian_plate(corrected)
 
     @staticmethod
     def _region_candidates(results: list[tuple]) -> list[tuple[list, str, float]]:
