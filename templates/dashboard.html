@@ -13,10 +13,25 @@
             <h1>License Plate Dashboard</h1>
             <p>Live vehicle detections, search, and authorization status.</p>
         </div>
-        <a class="button" href="{{ url_for('dashboard') }}">Live Refresh</a>
+        <div class="topbar-actions">
+            <a class="button" href="{{ url_for('dashboard') }}">Live Refresh</a>
+            <form method="post" action="{{ url_for('reset_detections') }}" onsubmit="return confirm('Reset all detection records, CSV rows, and saved plate images? Authorized vehicles will stay saved.');">
+                <button class="danger-button" type="submit">Reset List</button>
+            </form>
+        </div>
     </header>
 
     <main>
+        {% with messages = get_flashed_messages() %}
+        {% if messages %}
+        <section class="flash-panel">
+            {% for message in messages %}
+            <p>{{ message }}</p>
+            {% endfor %}
+        </section>
+        {% endif %}
+        {% endwith %}
+
         <section class="stats">
             <div><span>Total Detections</span><strong>{{ stats.total_detections or 0 }}</strong></div>
             <div><span>Vehicles</span><strong>{{ stats.total_vehicles or 0 }}</strong></div>

@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+import shutil
 import sqlite3
 import sys
+import csv
 
 from flask import Flask, flash, jsonify, redirect, render_template, request, url_for
 
@@ -13,7 +15,7 @@ SRC_DIR = PROJECT_ROOT / "src"
 if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
-from license_plate_recognition.storage import PlateLogger
+from license_plate_recognition.storage import CSV_FIELDNAMES, PlateLogger
 
 
 DB_PATH = Path(os.environ.get("PLATE_DB_PATH", PROJECT_ROOT / "outputs" / "plates.db"))
@@ -33,6 +35,10 @@ def get_connection() -> sqlite3.Connection:
 
 def api_authorized() -> bool:
     return not API_KEY or request.headers.get("X-API-Key") == API_KEY
+
+
+def crop_dir() -> Path:
+    return CSV_PATH.parent / "plate_crops"
 
 
 @app.get("/")
@@ -136,6 +142,29 @@ def add_authorized_vehicle():
             (plate_text,),
         )
     return redirect(url_for("dashboard", search=plate_text))
+
+
+@app.post("/reset-detections")
+def reset_detections():
+    with get_connection() as connection:
+        connection.execute("DELETE FROM detections")
+        connection.execute("DELETE FROM sqlite_sequence WHERE name = 'detections'")
+
+    CSV_PATH.parent.mkdir(parents=True, exist_ok=True)
+    with CSV_PATH.open("w", newline="", encoding="utf-8") as file:
+        writer = csv.writer(file)
+        writer.writerow(CSV_FIELDNAMES)
+
+    crops = crop_dir()
+    if crops.exists():
+        for path in crops.iterdir():
+            if path.is_file():
+                path.unlink()
+            elif path.is_dir():
+                shutil.rmtree(path)
+
+    flash("Detection list, CSV log, and saved plate images were reset.")
+    return redirect(url_for("dashboard"))
 
 
 @app.post("/api/detections")
